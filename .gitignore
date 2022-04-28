@@ -1,0 +1,5 @@
+*.sw*
+*.png
+*.directory
+qrcode/qrcode
+.idea
