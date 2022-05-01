@@ -15,35 +15,41 @@ go get github.com/zhang-jianqiang/go-qrcode
 ## Usage
 
 ```go
-import qrcode "github.com/zhang-jianqiang/go-qrcode"
-```
+package main
 
-**Create a 256x256 PNG image:**
+import (
+	"fmt"
+	"github.com/zhang-jianqiang/go-qrcode"
+)
 
-```go
-var png []byte
-png, err := qrcode.Encode("https://example.org", qrcode.Medium, 256)
-log.Println(err)
-```
+func main() {
+	// Create png 100*100
+	var img []byte
+	img, _ = qrcode.Encode("https://cn.bing.com", qrcode.High, 100)
+	fmt.Println(img)
 
-**Create a 256x256 PNG image and write to a file:**
+	// Create png and write a file
+	err := qrcode.WriteFile("https://cn.bing.com", qrcode.High, 100, "qrcode.png")
+	fmt.Println(err)
 
-```go
-err := qrcode.WriteFile("https://example.org", qrcode.Medium, 256, "qr.png")
-log.Println(err)
-```
+	// Custom border blank
+	img, _ = qrcode.Encode("https://cn.bing.com", qrcode.High, 100, qrcode.WithBorderSize(1))
+	// Or
+	err = qrcode.WriteFile("https://cn.bing.com", qrcode.High, 100, "qrcode.png", qrcode.WithBorderSize(1))
+	fmt.Println(err)
 
-**Create a 256x256 PNG image with custom colors and write to file:**
+	// Add logo
+	logo, _ := os.Open("logo.png")
 
-```go
-err := qrcode.WriteColorFile("https://example.org", qrcode.Medium, 256, color.Black, color.White, "qr.png")
-log.Println(err)
-```
-
-**Set custom blank margin**
-```go
-code, _ := qrcode.New("dd", qrcode.Medium)
-code.BorderSize = 2
-err := code.WriteFile(100, "test4.png")
-log.Println(err)
+	img, _ = qrcode.Encode("https://cn.bing.com", qrcode.High, 100, qrcode.WithLogo(&qrcode.Logo{
+		File: logo,
+		Size: 40,
+	}))
+	// Or
+	err = qrcode.WriteFile("https://cn.bing.com", qrcode.High, 100, "qrcode.png", qrcode.WithLogo(&qrcode.Logo{
+		File: logo,
+		Size: 40,
+	}))
+	fmt.Println(err)
+}
 ```

@@ -52,6 +52,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/disintegration/imaging"
 	"image"
 	"image/color"
 	"image/png"
@@ -71,13 +72,16 @@ import (
 // variable sized image to be returned: See the documentation for Image().
 //
 // To serve over HTTP, remember to send a Content-Type: image/png header.
-func Encode(content string, level RecoveryLevel, size int) ([]byte, error) {
+func Encode(content string, level RecoveryLevel, size int, opts ...Option) ([]byte, error) {
 	var q *QRCode
-
 	q, err := New(content, level)
 
 	if err != nil {
 		return nil, err
+	}
+
+	for _, opt := range opts {
+		opt(q)
 	}
 
 	return q.PNG(size)
@@ -88,13 +92,17 @@ func Encode(content string, level RecoveryLevel, size int) ([]byte, error) {
 // size is both the image width and height in pixels. If size is too small then
 // a larger image is silently written. Negative values for size cause a variable
 // sized image to be written: See the documentation for Image().
-func WriteFile(content string, level RecoveryLevel, size int, filename string) error {
+func WriteFile(content string, level RecoveryLevel, size int, filename string, opts ...Option) error {
 	var q *QRCode
 
 	q, err := New(content, level)
 
 	if err != nil {
 		return err
+	}
+
+	for _, opt := range opts {
+		opt(q)
 	}
 
 	return q.WriteFile(size, filename)
@@ -123,6 +131,12 @@ func WriteColorFile(content string, level RecoveryLevel, size int, background,
 	return q.WriteFile(size, filename)
 }
 
+// Logo Qrcode logo
+type Logo struct {
+	File io.Reader
+	Size int
+}
+
 // A QRCode represents a valid encoded QRCode.
 type QRCode struct {
 	// Original content encoded.
@@ -147,6 +161,23 @@ type QRCode struct {
 	data   *bitset.Bitset
 	symbol *symbol
 	mask   int
+
+	// logo
+	Logo *Logo
+}
+
+type Option func(qrcode *QRCode)
+
+func WithBorderSize(size int) Option {
+	return func(qrcode *QRCode) {
+		qrcode.BorderSize = size
+	}
+}
+
+func WithLogo(logo *Logo) Option {
+	return func(qrcode *QRCode) {
+		qrcode.Logo = logo
+	}
 }
 
 // New constructs a QRCode.
@@ -341,10 +372,19 @@ func (q *QRCode) Image(size int) image.Image {
 func (q *QRCode) PNG(size int) ([]byte, error) {
 	img := q.Image(size)
 
+	// set logo
+	var err error
+	if q.Logo != nil {
+		img, err = q.AddLogo(size, img)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	encoder := png.Encoder{CompressionLevel: png.BestCompression}
 
 	var b bytes.Buffer
-	err := encoder.Encode(&b, img)
+	err = encoder.Encode(&b, img)
 
 	if err != nil {
 		return nil, err
@@ -607,4 +647,22 @@ func (q *QRCode) ToSmallString(inverseColor bool) string {
 		buf.WriteString("\n")
 	}
 	return buf.String()
+}
+
+// AddLogo set a logo on qrcode
+func (q *QRCode) AddLogo(bgSize int, src image.Image) (img image.Image, err error) {
+	if q.Logo == nil || q.Logo.File == nil {
+		return nil, errors.New("nil logo error")
+	}
+	logoDecode, err := png.Decode(q.Logo.File)
+	if err != nil {
+		return
+	}
+	// resize logo
+	resizeLogo := imaging.Resize(logoDecode, q.Logo.Size, q.Logo.Size, imaging.Lanczos)
+	img = imaging.New(bgSize, bgSize, color.NRGBA{})
+	img = imaging.Paste(img, src, image.Pt(0, 0))
+	img = imaging.Paste(img, resizeLogo, image.Pt((bgSize-q.Logo.Size)/2, (bgSize-q.Logo.Size)/2))
+
+	return
 }
