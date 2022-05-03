@@ -50,9 +50,11 @@ package qrcode
 
 import (
 	"bytes"
+	_ "embed"
 	"errors"
 	"fmt"
 	"github.com/disintegration/imaging"
+	"github.com/zhang-jianqiang/gg"
 	"image"
 	"image/color"
 	"image/png"
@@ -64,6 +66,9 @@ import (
 	bitset "github.com/zhang-jianqiang/go-qrcode/bitset"
 	reedsolomon "github.com/zhang-jianqiang/go-qrcode/reedsolomon"
 )
+
+//go:embed msyh.ttf
+var font []byte
 
 // Encode a QR Code and return a raw PNG image.
 //
@@ -137,6 +142,12 @@ type Logo struct {
 	Size int
 }
 
+// Text 二维码底部的文字
+type Text struct {
+	Label string
+	Size  float64
+}
+
 // A QRCode represents a valid encoded QRCode.
 type QRCode struct {
 	// Original content encoded.
@@ -164,6 +175,10 @@ type QRCode struct {
 
 	// logo
 	Logo *Logo
+	// 文字
+	Text *Text
+	// 字体文件
+	Font []byte
 }
 
 type Option func(qrcode *QRCode)
@@ -177,6 +192,12 @@ func WithBorderSize(size int) Option {
 func WithLogo(logo *Logo) Option {
 	return func(qrcode *QRCode) {
 		qrcode.Logo = logo
+	}
+}
+
+func WithText(text *Text) Option {
+	return func(qrcode *QRCode) {
+		qrcode.Text = text
 	}
 }
 
@@ -228,6 +249,7 @@ func New(content string, level RecoveryLevel) (*QRCode, error) {
 		encoder: encoder,
 		data:    encoded,
 		version: *chosenVersion,
+		Font:    font,
 	}
 
 	return q, nil
@@ -376,6 +398,14 @@ func (q *QRCode) PNG(size int) ([]byte, error) {
 	var err error
 	if q.Logo != nil {
 		img, err = q.AddLogo(size, img)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// set text
+	if q.Text != nil {
+		img, err = q.AddText(size, img)
 		if err != nil {
 			return nil, err
 		}
@@ -665,4 +695,37 @@ func (q *QRCode) AddLogo(bgSize int, src image.Image) (img image.Image, err erro
 	img = imaging.Paste(img, resizeLogo, image.Pt((bgSize-q.Logo.Size)/2, (bgSize-q.Logo.Size)/2))
 
 	return
+}
+
+// AddText 在二维码底部添加文字
+func (q *QRCode) AddText(size int, codeImg image.Image) (img image.Image, err error) {
+	// 背景图的宽
+	w := size
+	// 背景图的高
+	h := size + int(q.Text.Size)/2 + int(q.Text.Size)
+
+	// 计算文字的位置
+	x := float64(w / 2)
+	y := float64((h-size)/2 + size)
+
+	dc := gg.NewContext(w, h)
+	// 设置背景色
+	dc.SetColor(q.BackgroundColor)
+	dc.Clear()
+	// 设置字体颜色
+	dc.SetColor(color.Black)
+	// 载入字体
+	fontFace, err := gg.LoadFontByte(font, q.Text.Size)
+	if err != nil {
+		return
+	}
+	dc.SetFontFace(fontFace)
+	dc.DrawStringAnchored(q.Text.Label, x, y, 0.5, 0.35)
+
+	dst := imaging.Paste(dc.Image(), codeImg, image.Point{
+		X: 0,
+		Y: 0,
+	})
+
+	return dst, nil
 }
