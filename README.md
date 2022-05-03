@@ -51,5 +51,11 @@ func main() {
 		Size: 40,
 	}))
 	fmt.Println(err)
+
+	// 添加底部文字
+	err := qrcode.WriteFile("https://www.baidu.com", qrcode.High, 200, "txt.png", qrcode.WithText(&qrcode.Text{
+		Size:  16,
+		Label: "大家好",
+	}), qrcode.WithBorderSize(1))
 }
 ```
